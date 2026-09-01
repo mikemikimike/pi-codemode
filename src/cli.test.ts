@@ -239,6 +239,7 @@ describe("cli command capabilities", () => {
     ]);
     expect(buildCliArgv("git", "push", { remote: "origin", branch: "main" })).toEqual([
       "push",
+      "--",
       "origin",
       "main",
     ]);
@@ -474,11 +475,21 @@ describe("cli command capabilities", () => {
         hidden: true,
         ignoreCase: true,
       }),
-    ).toEqual(["--ignore-case", "--hidden", "--max-count", "2", "--glob", "*.ts", "TODO", "src"]);
-    expect(buildCliArgv("find", "files", {})).toEqual(["."]);
+    ).toEqual([
+      "--ignore-case",
+      "--hidden",
+      "--max-count",
+      "2",
+      "--glob=*.ts",
+      "-e",
+      "TODO",
+      "--",
+      "src",
+    ]);
+    expect(buildCliArgv("find", "files", {})).toEqual(["--", "."]);
     expect(
       buildCliArgv("find", "files", { path: "src", maxDepth: 3, name: "*.ts", type: "file" }),
-    ).toEqual(["src", "-maxdepth", "3", "-name", "*.ts", "-type", "f"]);
+    ).toEqual(["--", "src", "-maxdepth", "3", "-name", "*.ts", "-type", "f"]);
     expect(buildCliArgv("find", "files", { type: "directory" })).toContain("d");
     expect(
       buildCliArgv("grep", "search", {
@@ -487,29 +498,91 @@ describe("cli command capabilities", () => {
         recursive: true,
         ignoreCase: true,
       }),
-    ).toEqual(["-R", "-i", "x", "src"]);
+    ).toEqual(["-R", "-i", "-e", "x", "--", "src"]);
     expect(buildCliArgv("ls", "list", { all: true, long: true, path: "src" })).toEqual([
       "-a",
       "-l",
+      "--",
       "src",
     ]);
     expect(buildCliArgv("vitest", "run", { paths: ["src/cli.test.ts"], update: true })).toEqual([
       "run",
-      "src/cli.test.ts",
       "--update",
+      "--",
+      "src/cli.test.ts",
     ]);
     expect(buildCliArgv("vitest", "run", { reporter: "json" })).toEqual(["run", "--reporter=json"]);
     expect(buildCliArgv("tsc", "build", {})).toEqual([]);
     expect(buildCliArgv("tsc", "build", { watch: true })).toEqual(["--watch"]);
-    expect(buildCliArgv("oxfmt", "check", { paths: ["."] })).toEqual([".", "--check"]);
-    expect(buildCliArgv("oxfmt", "write", { paths: ["."] })).toEqual([".", "--write"]);
+    expect(buildCliArgv("oxfmt", "check", { paths: ["."] })).toEqual(["--check", "--", "."]);
+    expect(buildCliArgv("oxfmt", "write", { paths: ["."] })).toEqual(["--write", "--", "."]);
     expect(
       buildCliArgv("oxlint", "run", {
         deny: "warnings",
         vitestPlugin: true,
         paths: ["src"],
       }),
-    ).toEqual(["--deny", "warnings", "--vitest-plugin", "src"]);
+    ).toEqual(["--deny", "warnings", "--vitest-plugin", "--", "src"]);
+  });
+
+  test("fences guest-controlled CLI operands from option parsing", () => {
+    expect(buildCliArgv("rg", "search", { pattern: "--pre=/bin/sh", paths: ["src"] })).toEqual([
+      "-e",
+      "--pre=/bin/sh",
+      "--",
+      "src",
+    ]);
+    expect(buildCliArgv("grep", "search", { pattern: "--include=*.ts", paths: ["src"] })).toEqual([
+      "-e",
+      "--include=*.ts",
+      "--",
+      "src",
+    ]);
+
+    expect(() => buildCliArgv("find", "files", { path: "-delete" })).toThrow(
+      "path must not be empty or start with '-'",
+    );
+    expect(() => buildCliArgv("git", "push", { remote: "--receive-pack=/tmp/payload" })).toThrow(
+      "remote must not be empty or start with '-'",
+    );
+    expect(() => buildCliArgv("git", "pull", { branch: "--upload-pack=/tmp/payload" })).toThrow(
+      "branch must not be empty or start with '-'",
+    );
+    expect(() => buildCliArgv("git", "diff", { ref: "--output=/tmp/evil" })).toThrow(
+      "ref must not be empty or start with '-'",
+    );
+    expect(() => buildCliArgv("ls", "list", { path: "--help" })).toThrow(
+      "path must not be empty or start with '-'",
+    );
+    expect(() => buildCliArgv("vitest", "run", { paths: ["--runInBand"] })).toThrow(
+      "paths must not contain empty operands or operands starting with '-'",
+    );
+    expect(() => buildCliArgv("oxfmt", "check", { paths: ["--write"] })).toThrow(
+      "paths must not contain empty operands or operands starting with '-'",
+    );
+    expect(() => buildCliArgv("oxlint", "run", { paths: ["--fix"] })).toThrow(
+      "paths must not contain empty operands or operands starting with '-'",
+    );
+  });
+
+  test("read-only git operations pass fenced operands to the host", async () => {
+    const cwd = tempProject();
+    writeFileSync(
+      join(cwd, "diff"),
+      "process.stdout.write(JSON.stringify(process.argv.slice(2)));\n",
+    );
+    const result = await new QuickJsExecutor({ timeout: 10_000 }).execute(
+      "return await cli.git.diff({ ref: 'HEAD' });",
+      {
+        cli: createCliBindings(
+          { git: { backend: "host", command: process.execPath, operations: ["diff"] } },
+          cwd,
+        ),
+      },
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(JSON.parse(String((result.result as { stdout: string }).stdout))).toEqual(["HEAD"]);
   });
 
   test("validates runtime argument shapes", () => {
@@ -637,20 +710,20 @@ describe("cli command capabilities", () => {
     expect(stderr).toContain("[Output truncated");
   });
 
-  test("host commands receive authentication-related environment", async () => {
+  test("GitHub commands receive authentication-related environment", async () => {
     const cwd = tempProject();
     writeFileSync(
-      join(cwd, "status"),
+      join(cwd, "issue"),
       "process.stdout.write(JSON.stringify({ HOME: process.env.HOME, GH_TOKEN: process.env.GH_TOKEN }));\n",
     );
     const previousToken = process.env.GH_TOKEN;
     process.env.GH_TOKEN = "test-token";
     try {
       const result = await new QuickJsExecutor({ timeout: 10_000 }).execute(
-        "return await cli.git.status({});",
+        "return await cli.gh.issueView({ number: 1 });",
         {
           cli: createCliBindings(
-            { git: { backend: "host", command: process.execPath, operations: ["status"] } },
+            { gh: { backend: "host", command: process.execPath, operations: ["issueView"] } },
             cwd,
           ),
         },
@@ -664,6 +737,37 @@ describe("cli command capabilities", () => {
     } finally {
       if (previousToken === undefined) delete process.env.GH_TOKEN;
       else process.env.GH_TOKEN = previousToken;
+    }
+  });
+
+  test("non-GitHub host commands do not receive GitHub tokens", async () => {
+    const cwd = tempProject();
+    writeFileSync(
+      join(cwd, "status"),
+      "process.stdout.write(JSON.stringify({ GH_TOKEN: process.env.GH_TOKEN, GITHUB_TOKEN: process.env.GITHUB_TOKEN }));\n",
+    );
+    const previousGhToken = process.env.GH_TOKEN;
+    const previousGithubToken = process.env.GITHUB_TOKEN;
+    process.env.GH_TOKEN = "test-gh-token";
+    process.env.GITHUB_TOKEN = "test-github-token";
+    try {
+      const result = await new QuickJsExecutor({ timeout: 10_000 }).execute(
+        "return await cli.git.status({});",
+        {
+          cli: createCliBindings(
+            { git: { backend: "host", command: process.execPath, operations: ["status"] } },
+            cwd,
+          ),
+        },
+      );
+
+      expect(result.error).toBeUndefined();
+      expect(JSON.parse(String((result.result as { stdout: string }).stdout))).toEqual({});
+    } finally {
+      if (previousGhToken === undefined) delete process.env.GH_TOKEN;
+      else process.env.GH_TOKEN = previousGhToken;
+      if (previousGithubToken === undefined) delete process.env.GITHUB_TOKEN;
+      else process.env.GITHUB_TOKEN = previousGithubToken;
     }
   });
 
