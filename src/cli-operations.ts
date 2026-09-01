@@ -167,7 +167,7 @@ export const CLI_OPERATIONS: Record<string, Record<string, CliOperationDefinitio
         ...(args.staged ? ["--cached"] : []),
         ...(args.stat ? ["--stat"] : []),
         ...(args.nameOnly ? ["--name-only"] : []),
-        ...positionalsWithDelimiter([[args.ref, "ref"]]),
+        ...optionalOperand(args.ref, "ref"),
         ...pathspec(args.paths),
       ],
     },
@@ -204,7 +204,7 @@ export const CLI_OPERATIONS: Record<string, Record<string, CliOperationDefinitio
         "show",
         ...(args.stat ? ["--stat"] : []),
         ...(args.nameOnly ? ["--name-only"] : []),
-        ...positionalsWithDelimiter([[args.ref, "ref"]]),
+        ...optionalOperand(args.ref, "ref"),
       ],
     },
     remote: {
@@ -229,7 +229,7 @@ export const CLI_OPERATIONS: Record<string, Record<string, CliOperationDefinitio
         "rev-parse",
         ...(args.showTopLevel ? ["--show-toplevel"] : []),
         ...(args.isInsideWorkTree ? ["--is-inside-work-tree"] : []),
-        ...positionalsWithDelimiter([[args.ref, "ref"]]),
+        ...optionalOperand(args.ref, "ref"),
       ],
     },
     add: {
@@ -324,12 +324,15 @@ export const CLI_OPERATIONS: Record<string, Record<string, CliOperationDefinitio
         },
         ["branch"],
       ),
-      toArgv: (args) => [
-        "switch",
-        ...(args.create ? ["--create"] : []),
-        ...(args.detach ? ["--detach"] : []),
-        ...positionalsWithDelimiter([[requiredString(args, "branch"), "branch"]]),
-      ],
+      toArgv: (args) => {
+        const branch = safeOperand(requiredString(args, "branch"), "branch");
+        return [
+          "switch",
+          ...(args.create ? [`--create=${branch}`] : []),
+          ...(args.detach ? ["--detach"] : []),
+          ...(args.create ? [] : ["--", branch]),
+        ];
+      },
     },
     checkout: {
       effect: "write",
@@ -339,7 +342,7 @@ export const CLI_OPERATIONS: Record<string, Record<string, CliOperationDefinitio
       inputSchema: obj({ branch: s("Branch or tree-ish."), paths: sa("Paths to check out.") }),
       toArgv: (args) => [
         "checkout",
-        ...positionalsWithDelimiter([[args.branch, "branch"]]),
+        ...optionalOperand(args.branch, "branch"),
         ...pathspec(args.paths),
       ],
     },
@@ -373,7 +376,7 @@ export const CLI_OPERATIONS: Record<string, Record<string, CliOperationDefinitio
       toArgv: (args) => [
         "reset",
         ...resetMode(args.mode),
-        ...positionalsWithDelimiter([[args.ref, "ref"]]),
+        ...optionalOperand(args.ref, "ref"),
         ...pathspec(args.paths),
       ],
     },

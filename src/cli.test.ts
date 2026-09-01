@@ -220,7 +220,6 @@ describe("cli command capabilities", () => {
     ]);
     expect(buildCliArgv("git", "diff", { ref: "HEAD", paths: ["src/a.ts"] })).toEqual([
       "diff",
-      "--",
       "HEAD",
       "--",
       "src/a.ts",
@@ -234,11 +233,10 @@ describe("cli command capabilities", () => {
     expect(buildCliArgv("git", "show", { ref: "HEAD", stat: true })).toEqual([
       "show",
       "--stat",
-      "--",
       "HEAD",
     ]);
     expect(buildCliArgv("git", "remote", { verbose: true })).toEqual(["remote", "-v"]);
-    expect(buildCliArgv("git", "revParse", { ref: "HEAD" })).toEqual(["rev-parse", "--", "HEAD"]);
+    expect(buildCliArgv("git", "revParse", { ref: "HEAD" })).toEqual(["rev-parse", "HEAD"]);
     expect(buildCliArgv("git", "add", { paths: ["src/a.ts"] })).toEqual(["add", "--", "src/a.ts"]);
     expect(buildCliArgv("git", "commit", { message: "feat: add tools" })).toEqual([
       "commit",
@@ -251,15 +249,17 @@ describe("cli command capabilities", () => {
       "main",
     ]);
     expect(buildCliArgv("git", "pull", { rebase: true })).toEqual(["pull", "--rebase"]);
-    expect(buildCliArgv("git", "switch", { branch: "feature", create: true })).toEqual([
+    expect(buildCliArgv("git", "switch", { branch: "feature" })).toEqual([
       "switch",
-      "--create",
       "--",
       "feature",
     ]);
+    expect(buildCliArgv("git", "switch", { branch: "feature", create: true })).toEqual([
+      "switch",
+      "--create=feature",
+    ]);
     expect(buildCliArgv("git", "checkout", { branch: "main", paths: ["README.md"] })).toEqual([
       "checkout",
-      "--",
       "main",
       "--",
       "README.md",
@@ -273,7 +273,6 @@ describe("cli command capabilities", () => {
     expect(buildCliArgv("git", "reset", { mode: "soft", ref: "HEAD~1" })).toEqual([
       "reset",
       "--soft",
-      "--",
       "HEAD~1",
     ]);
     expect(buildCliArgv("git", "stash", { command: "push", message: "wip" })).toEqual([
@@ -598,10 +597,7 @@ describe("cli command capabilities", () => {
     );
 
     expect(result.error).toBeUndefined();
-    expect(JSON.parse(String((result.result as { stdout: string }).stdout))).toEqual([
-      "--",
-      "HEAD",
-    ]);
+    expect(JSON.parse(String((result.result as { stdout: string }).stdout))).toEqual(["HEAD"]);
   });
 
   test("validates runtime argument shapes", () => {
