@@ -167,7 +167,7 @@ export const CLI_OPERATIONS: Record<string, Record<string, CliOperationDefinitio
         ...(args.staged ? ["--cached"] : []),
         ...(args.stat ? ["--stat"] : []),
         ...(args.nameOnly ? ["--name-only"] : []),
-        ...optionalOperand(args.ref, "ref"),
+        ...positionalsWithDelimiter([[args.ref, "ref"]]),
         ...pathspec(args.paths),
       ],
     },
@@ -204,7 +204,7 @@ export const CLI_OPERATIONS: Record<string, Record<string, CliOperationDefinitio
         "show",
         ...(args.stat ? ["--stat"] : []),
         ...(args.nameOnly ? ["--name-only"] : []),
-        ...optionalOperand(args.ref, "ref"),
+        ...positionalsWithDelimiter([[args.ref, "ref"]]),
       ],
     },
     remote: {
@@ -229,7 +229,7 @@ export const CLI_OPERATIONS: Record<string, Record<string, CliOperationDefinitio
         "rev-parse",
         ...(args.showTopLevel ? ["--show-toplevel"] : []),
         ...(args.isInsideWorkTree ? ["--is-inside-work-tree"] : []),
-        ...optionalOperand(args.ref, "ref"),
+        ...positionalsWithDelimiter([[args.ref, "ref"]]),
       ],
     },
     add: {
@@ -266,8 +266,7 @@ export const CLI_OPERATIONS: Record<string, Record<string, CliOperationDefinitio
         "commit",
         ...(args.all ? ["--all"] : []),
         ...(args.amend ? ["--amend"] : []),
-        "-m",
-        requiredString(args, "message"),
+        ...stringFlag("--message", requiredString(args, "message"), "message"),
       ],
     },
     push: {
@@ -329,7 +328,7 @@ export const CLI_OPERATIONS: Record<string, Record<string, CliOperationDefinitio
         "switch",
         ...(args.create ? ["--create"] : []),
         ...(args.detach ? ["--detach"] : []),
-        safeOperand(requiredString(args, "branch"), "branch"),
+        ...positionalsWithDelimiter([[requiredString(args, "branch"), "branch"]]),
       ],
     },
     checkout: {
@@ -340,7 +339,7 @@ export const CLI_OPERATIONS: Record<string, Record<string, CliOperationDefinitio
       inputSchema: obj({ branch: s("Branch or tree-ish."), paths: sa("Paths to check out.") }),
       toArgv: (args) => [
         "checkout",
-        ...optionalOperand(args.branch, "branch"),
+        ...positionalsWithDelimiter([[args.branch, "branch"]]),
         ...pathspec(args.paths),
       ],
     },
@@ -374,7 +373,7 @@ export const CLI_OPERATIONS: Record<string, Record<string, CliOperationDefinitio
       toArgv: (args) => [
         "reset",
         ...resetMode(args.mode),
-        ...optionalOperand(args.ref, "ref"),
+        ...positionalsWithDelimiter([[args.ref, "ref"]]),
         ...pathspec(args.paths),
       ],
     },
@@ -393,7 +392,7 @@ export const CLI_OPERATIONS: Record<string, Record<string, CliOperationDefinitio
         "stash",
         ...stashCommand(args.command),
         ...(args.includeUntracked ? ["--include-untracked"] : []),
-        ...stringFlag("-m", args.message, "message"),
+        ...stringFlag("--message", args.message, "message"),
         ...optionalOperand(args.stash, "stash"),
       ],
     },
@@ -413,8 +412,8 @@ export const CLI_OPERATIONS: Record<string, Record<string, CliOperationDefinitio
         ...(args.delete ? ["--delete"] : []),
         ...(args.list ? ["--list"] : []),
         ...(args.message ? ["-a"] : []),
-        ...optionalOperand(args.name, "name"),
-        ...stringFlag("-m", args.message, "message"),
+        ...stringFlag("--message", args.message, "message"),
+        ...positionalsWithDelimiter([[args.name, "name"]]),
       ],
     },
   },
@@ -478,8 +477,7 @@ export const CLI_OPERATIONS: Record<string, Record<string, CliOperationDefinitio
       toArgv: (args) => [
         "issue",
         "create",
-        "--title",
-        requiredString(args, "title"),
+        ...stringFlag("--title", requiredString(args, "title"), "title"),
         ...stringFlag("--body", args.body, "body"),
         ...stringArrayFlag("--label", args.label),
         ...stringArrayFlag("--assignee", args.assignee),
@@ -545,8 +543,7 @@ export const CLI_OPERATIONS: Record<string, Record<string, CliOperationDefinitio
         "issue",
         "comment",
         requiredNumber(args, "number"),
-        "--body",
-        requiredString(args, "body"),
+        ...stringFlag("--body", requiredString(args, "body"), "body"),
         ...repo(args),
       ],
     },
@@ -972,7 +969,7 @@ function numberFlag(flag: string, value: unknown): string[] {
   return [flag, String(value)];
 }
 function stringArrayFlag(flag: string, value: unknown): string[] {
-  return stringArray(value, flag).flatMap((v) => [flag, v]);
+  return stringArray(value, flag).map((v) => `${flag}=${v}`);
 }
 function optionalOperand(value: unknown, key: string): string[] {
   if (value === undefined) return [];
@@ -1005,7 +1002,7 @@ function nonEmptyString(value: unknown, key: string): string {
 function stringFlag(flag: string, value: unknown, key: string): string[] {
   if (value === undefined) return [];
   if (typeof value !== "string") throw new Error(`${key} must be a string`);
-  return [flag, value];
+  return [`${flag}=${value}`];
 }
 function resetMode(value: unknown): string[] {
   if (value === undefined) return [];
@@ -1030,9 +1027,7 @@ function safeOperandArray(value: unknown, key = "paths"): string[] {
   return values;
 }
 function repo(args: Record<string, unknown>): string[] {
-  if (args.repo === undefined) return [];
-  if (typeof args.repo !== "string") throw new Error("repo must be a string");
-  return ["--repo", args.repo];
+  return stringFlag("--repo", args.repo, "repo");
 }
 function repoApiPath(value: unknown): string {
   if (value === undefined) return "repos/{owner}/{repo}";

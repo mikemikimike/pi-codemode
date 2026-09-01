@@ -218,6 +218,13 @@ describe("cli command capabilities", () => {
       "--",
       "src/a.ts",
     ]);
+    expect(buildCliArgv("git", "diff", { ref: "HEAD", paths: ["src/a.ts"] })).toEqual([
+      "diff",
+      "--",
+      "HEAD",
+      "--",
+      "src/a.ts",
+    ]);
     expect(buildCliArgv("git", "log", { limit: 3, oneline: true })).toEqual([
       "log",
       "--max-count",
@@ -227,15 +234,15 @@ describe("cli command capabilities", () => {
     expect(buildCliArgv("git", "show", { ref: "HEAD", stat: true })).toEqual([
       "show",
       "--stat",
+      "--",
       "HEAD",
     ]);
     expect(buildCliArgv("git", "remote", { verbose: true })).toEqual(["remote", "-v"]);
-    expect(buildCliArgv("git", "revParse", { ref: "HEAD" })).toEqual(["rev-parse", "HEAD"]);
+    expect(buildCliArgv("git", "revParse", { ref: "HEAD" })).toEqual(["rev-parse", "--", "HEAD"]);
     expect(buildCliArgv("git", "add", { paths: ["src/a.ts"] })).toEqual(["add", "--", "src/a.ts"]);
     expect(buildCliArgv("git", "commit", { message: "feat: add tools" })).toEqual([
       "commit",
-      "-m",
-      "feat: add tools",
+      "--message=feat: add tools",
     ]);
     expect(buildCliArgv("git", "push", { remote: "origin", branch: "main" })).toEqual([
       "push",
@@ -247,10 +254,12 @@ describe("cli command capabilities", () => {
     expect(buildCliArgv("git", "switch", { branch: "feature", create: true })).toEqual([
       "switch",
       "--create",
+      "--",
       "feature",
     ]);
     expect(buildCliArgv("git", "checkout", { branch: "main", paths: ["README.md"] })).toEqual([
       "checkout",
+      "--",
       "main",
       "--",
       "README.md",
@@ -264,27 +273,26 @@ describe("cli command capabilities", () => {
     expect(buildCliArgv("git", "reset", { mode: "soft", ref: "HEAD~1" })).toEqual([
       "reset",
       "--soft",
+      "--",
       "HEAD~1",
     ]);
     expect(buildCliArgv("git", "stash", { command: "push", message: "wip" })).toEqual([
       "stash",
       "push",
-      "-m",
-      "wip",
+      "--message=wip",
     ]);
     expect(buildCliArgv("git", "tag", { name: "v1.0.0", message: "release" })).toEqual([
       "tag",
       "-a",
+      "--message=release",
+      "--",
       "v1.0.0",
-      "-m",
-      "release",
     ]);
     expect(buildCliArgv("gh", "issueView", { number: 13, repo: "owner/repo" })).toEqual([
       "issue",
       "view",
       "13",
-      "--repo",
-      "owner/repo",
+      "--repo=owner/repo",
       "--json",
       "number,title,state,url,body,author,createdAt,updatedAt,labels,assignees,comments",
     ]);
@@ -300,8 +308,7 @@ describe("cli command capabilities", () => {
     ).toEqual([
       "issue",
       "list",
-      "--repo",
-      "owner/repo",
+      "--repo=owner/repo",
       "--state",
       "open",
       "--limit",
@@ -354,18 +361,12 @@ describe("cli command capabilities", () => {
     ).toEqual([
       "issue",
       "create",
-      "--title",
-      "Track CLI discovery",
-      "--body",
-      "Add dynamic discovery.",
-      "--label",
-      "enhancement",
-      "--label",
-      "security",
-      "--assignee",
-      "@me",
-      "--repo",
-      "owner/repo",
+      "--title=Track CLI discovery",
+      "--body=Add dynamic discovery.",
+      "--label=enhancement",
+      "--label=security",
+      "--assignee=@me",
+      "--repo=owner/repo",
     ]);
     expect(
       buildCliArgv("gh", "issueEdit", {
@@ -380,16 +381,11 @@ describe("cli command capabilities", () => {
       "issue",
       "edit",
       "21",
-      "--title",
-      "Updated title",
-      "--body",
-      "Updated body",
-      "--add-label",
-      "enhancement",
-      "--remove-label",
-      "bug",
-      "--repo",
-      "owner/repo",
+      "--title=Updated title",
+      "--body=Updated body",
+      "--add-label=enhancement",
+      "--remove-label=bug",
+      "--repo=owner/repo",
     ]);
     expect(
       buildCliArgv("gh", "issueComment", {
@@ -397,7 +393,7 @@ describe("cli command capabilities", () => {
         body: "Depends on #22.",
         repo: "owner/repo",
       }),
-    ).toEqual(["issue", "comment", "21", "--body", "Depends on #22.", "--repo", "owner/repo"]);
+    ).toEqual(["issue", "comment", "21", "--body=Depends on #22.", "--repo=owner/repo"]);
     expect(buildCliArgv("gh", "issueClose", { number: 22 })).toEqual(["issue", "close", "22"]);
     expect(buildCliArgv("gh", "issueListBlockedBy", { number: 22 })).toEqual([
       "api",
@@ -439,7 +435,7 @@ describe("cli command capabilities", () => {
         comment: "Done in 0efa12b.",
         repo: "owner/repo",
       }),
-    ).toEqual(["issue", "close", "22", "--comment", "Done in 0efa12b.", "--repo", "owner/repo"]);
+    ).toEqual(["issue", "close", "22", "--comment=Done in 0efa12b.", "--repo=owner/repo"]);
     expect(
       buildCliArgv("gh", "labelCreate", {
         name: "security",
@@ -451,18 +447,14 @@ describe("cli command capabilities", () => {
       "label",
       "create",
       "security",
-      "--description",
-      "Security-related work",
-      "--color",
-      "d73a4a",
-      "--repo",
-      "owner/repo",
+      "--description=Security-related work",
+      "--color=d73a4a",
+      "--repo=owner/repo",
     ]);
     expect(buildCliArgv("gh", "labelList", { repo: "owner/repo", limit: 10 })).toEqual([
       "label",
       "list",
-      "--repo",
-      "owner/repo",
+      "--repo=owner/repo",
       "--limit",
       "10",
     ]);
@@ -522,7 +514,31 @@ describe("cli command capabilities", () => {
         vitestPlugin: true,
         paths: ["src"],
       }),
-    ).toEqual(["--deny", "warnings", "--vitest-plugin", "--", "src"]);
+    ).toEqual(["--deny=warnings", "--vitest-plugin", "--", "src"]);
+  });
+
+  test("keeps freeform option values attached without rejecting leading dashes", () => {
+    expect(buildCliArgv("git", "commit", { message: "--author=guest@example.com" })).toEqual([
+      "commit",
+      "--message=--author=guest@example.com",
+    ]);
+    expect(
+      buildCliArgv("gh", "issueCreate", {
+        title: "--title=guest",
+        body: "--body=guest",
+        label: ["--label=guest"],
+        assignee: ["--assignee=guest"],
+        repo: "--repo=guest",
+      }),
+    ).toEqual([
+      "issue",
+      "create",
+      "--title=--title=guest",
+      "--body=--body=guest",
+      "--label=--label=guest",
+      "--assignee=--assignee=guest",
+      "--repo=--repo=guest",
+    ]);
   });
 
   test("fences guest-controlled CLI operands from option parsing", () => {
@@ -582,7 +598,10 @@ describe("cli command capabilities", () => {
     );
 
     expect(result.error).toBeUndefined();
-    expect(JSON.parse(String((result.result as { stdout: string }).stdout))).toEqual(["HEAD"]);
+    expect(JSON.parse(String((result.result as { stdout: string }).stdout))).toEqual([
+      "--",
+      "HEAD",
+    ]);
   });
 
   test("validates runtime argument shapes", () => {
